@@ -36,6 +36,14 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("cswap.removeItem", (item?: AccountItem) =>
       removeItemCommand(item),
     ),
+    vscode.commands.registerCommand("cswap.expandUsage", () => {
+      const expanded = provider.toggleUsage();
+      void vscode.commands.executeCommand("setContext", "cswap.usageExpanded", expanded);
+    }),
+    vscode.commands.registerCommand("cswap.collapseUsage", () => {
+      const expanded = provider.toggleUsage();
+      void vscode.commands.executeCommand("setContext", "cswap.usageExpanded", expanded);
+    }),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("cswap")) {
         setupAutoRefresh(context);
@@ -43,6 +51,8 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }),
   );
+
+  void vscode.commands.executeCommand("setContext", "cswap.usageExpanded", true);
 
   setupAutoRefresh(context);
   void refresh();
@@ -163,12 +173,33 @@ async function doSwitch(account: Account): Promise<void> {
 
   await refresh();
 
+  const cfg = vscode.workspace.getConfiguration("cswap");
+  const autoReload = cfg.get<boolean>("autoReloadWindow", false);
+  const closeTerminals = cfg.get<boolean>("closeClaudeTerminals", false);
+
+  if (closeTerminals) {
+    disposeClaudeTerminals();
+  }
+
+  if (autoReload) {
+    await vscode.commands.executeCommand("workbench.action.reloadWindow");
+    return;
+  }
+
   const choice = await vscode.window.showInformationMessage(
     `Switched to ${account.email}. Reload the window for Claude Code to use the new account.`,
     "Reload Window",
   );
   if (choice === "Reload Window") {
     await vscode.commands.executeCommand("workbench.action.reloadWindow");
+  }
+}
+
+function disposeClaudeTerminals(): void {
+  for (const terminal of vscode.window.terminals) {
+    if (/claude/i.test(terminal.name)) {
+      terminal.dispose();
+    }
   }
 }
 

@@ -1,13 +1,33 @@
 import * as vscode from "vscode";
 import { Account } from "./cswap";
 
+type AnyItem = AccountItem | UsageItem;
+
+/** Tree item representing one usage detail line under an account. */
+export class UsageItem extends vscode.TreeItem {
+  constructor(line: string) {
+    super(line, vscode.TreeItemCollapsibleState.None);
+    this.contextValue = "cswapUsage";
+    this.iconPath = new vscode.ThemeIcon("pulse");
+  }
+}
+
 /** Tree item representing one managed Claude account. */
 export class AccountItem extends vscode.TreeItem {
-  constructor(readonly account: Account) {
-    super(account.email, vscode.TreeItemCollapsibleState.None);
+  constructor(
+    readonly account: Account,
+    expandUsage: boolean,
+  ) {
+    const hasUsage = account.usage.length > 0;
+    super(
+      account.email,
+      expandUsage && hasUsage
+        ? vscode.TreeItemCollapsibleState.Expanded
+        : vscode.TreeItemCollapsibleState.None,
+    );
 
     this.contextValue = "cswapAccount";
-    this.description = describe(account);
+    this.description = describe(account, expandUsage);
     this.tooltip = buildTooltip(account);
 
     this.iconPath = account.active
@@ -28,7 +48,7 @@ export class AccountItem extends vscode.TreeItem {
   }
 }
 
-function describe(a: Account): string {
+function describe(a: Account, expandUsage: boolean): string {
   const parts: string[] = [];
   if (a.active) {
     parts.push("● active");
@@ -36,8 +56,8 @@ function describe(a: Account): string {
   if (a.org) {
     parts.push(a.org);
   }
-  // Surface the first usage figure inline (e.g. "$$: 21% ...").
-  if (a.usage.length > 0) {
+  // When usage is expanded into children, omit it from the inline description.
+  if (!expandUsage && a.usage.length > 0) {
     parts.push(a.usage[0]);
   }
   return parts.join("  ·  ");
@@ -59,22 +79,40 @@ function buildTooltip(a: Account): vscode.MarkdownString {
   return md;
 }
 
-export class AccountsProvider implements vscode.TreeDataProvider<AccountItem> {
+export class AccountsProvider implements vscode.TreeDataProvider<AnyItem> {
   private readonly _onDidChange = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this._onDidChange.event;
 
   private accounts: Account[] = [];
+  private _expandUsage = true;
+
+  get expandUsage(): boolean {
+    return this._expandUsage;
+  }
 
   setAccounts(accounts: Account[]): void {
     this.accounts = accounts;
     this._onDidChange.fire();
   }
 
-  getTreeItem(element: AccountItem): vscode.TreeItem {
+  /** Toggle expanded usage details. Returns the new state. */
+  toggleUsage(): boolean {
+    this._expandUsage = !this._expandUsage;
+    this._onDidChange.fire();
+    return this._expandUsage;
+  }
+
+  getTreeItem(element: AnyItem): vscode.TreeItem {
     return element;
   }
 
-  getChildren(): AccountItem[] {
-    return this.accounts.map((a) => new AccountItem(a));
+  getChildren(element?: AnyItem): AnyItem[] {
+    if (!element) {
+      return this.accounts.map((a) => new AccountItem(a, this._expandUsage));
+    }
+    if (element instanceof AccountItem && this._expandUsage) {
+      return element.account.usage.map((line) => new UsageItem(line));
+    }
+    return [];
   }
 }
