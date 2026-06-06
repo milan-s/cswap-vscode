@@ -1,77 +1,127 @@
 #!/usr/bin/env python3
-"""Generate the Claude 'sunburst' logomark as filled capsule rays.
+"""Regenerate the CSwap icons from the original Claude logomark.
 
-Output is monochrome SVG using fill="currentColor" so it adapts to the
-VSCode theme (activity-bar mask + status-bar icon font both want this).
-We emit FILLED paths (no strokes) so the same geometry converts cleanly
-into an icon font glyph.
+Source of truth: design/claude-ai-logo-source.svg (the Wikimedia "Claude_Ai"
+logo — burst mark + "Claude" wordmark). We extract ONLY the burst path and
+build every icon we ship from it, so the geometry never drifts.
+
+Outputs:
+  media/icon.svg            sidebar / activity-bar icon: burst + circular
+                            swap arrows, arrows in currentColor (theme-adapting)
+  media/plugin-icon.png     extensions-list / Marketplace tile (256x256):
+                            cream background, terracotta burst, dark swap arrows
+  icons-src/claude-logo.svg monochrome burst, the glyph source for the icon font
+
+After running, rebuild the status-bar icon font (only needed if the burst
+geometry changed):
+  npx fantasticon icons-src -o media -n claude-icons -t woff -g json --normalize true
+
+Requires: cairosvg  (pip install cairosvg)
 """
 import math
+import re
+import os
 
-CX, CY = 12.0, 12.0
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SOURCE = os.path.join(ROOT, "design", "claude-ai-logo-source.svg")
+
+# Brand colours
+TERRACOTTA = "#D97757"   # the burst
+CREAM = "#F0EEE6"        # plugin-icon background (authentic Claude surface)
+CHARCOAL = "#262420"     # plugin-icon swap arrows
+
+# The burst path lives inside a group translated by this offset in the source.
+SRC_TRANSLATE = "translate(-75.96,-223.53)"
+# Its first (absolute) moveto; everything after is relative, so flattening the
+# group translate only requires shifting this one point.
+SRC_MOVETO = "m 105.01,322.07"
+FLAT_MOVETO = "m 29.05,98.54"   # = 105.01-75.96 , 322.07-223.53
+
+CX = CY = 12.0   # centre of the 24x24 icon
+R = 10.2         # radius of the swap-arrow ring
 
 
-def capsule(ax, ay, bx, by, r):
-    """Path for a stadium/capsule shape from A to B with radius r."""
-    dx, dy = bx - ax, by - ay
-    length = math.hypot(dx, dy)
-    ux, uy = dx / length, dy / length          # unit direction
-    nx, ny = -uy, ux                            # unit normal
-    a1 = (ax + nx * r, ay + ny * r)
-    a2 = (ax - nx * r, ay - ny * r)
-    b1 = (bx + nx * r, by + ny * r)
-    b2 = (bx - nx * r, by - ny * r)
+def burst_path():
+    """Extract the burst (orange, .cls-2) path data from the source SVG."""
+    svg = open(SOURCE).read()
+    m = re.search(r'd="(m 105\.01.*?z)"', svg, re.S)
+    if not m:
+        raise SystemExit("Could not find the burst path in " + SOURCE)
+    return m.group(1)
+
+
+def polar(r, deg):
+    a = math.radians(deg)
+    return (CX + r * math.cos(a), CY + r * math.sin(a))
+
+
+def arc(d0, d1, sweep, stroke, sw, hlen=3.4, hw=2.5):
+    """A circular arrow on the ring: arc from d0 to d1 with a triangular head.
+    The line ends flush (butt cap) and the head's tip extends just beyond it,
+    so the stroke flows cleanly into the arrowhead with no overshoot."""
+    x0, y0 = polar(R, d0)
+    x1, y1 = polar(R, d1)                       # where the line ends
+    tang = d1 + (90 if sweep else -90)          # tangent direction at the end
+    hx, hy = math.cos(math.radians(tang)), math.sin(math.radians(tang))
+    px, py = -hy, hx                            # perpendicular (head width)
+    tip = (x1 + hx * hlen, y1 + hy * hlen)      # tip extends beyond the line
+    b1 = (x1 + px * hw, y1 + py * hw)           # base corners flare at the end
+    b2 = (x1 - px * hw, y1 - py * hw)
     return (
-        f"M{a1[0]:.3f},{a1[1]:.3f} "
-        f"L{b1[0]:.3f},{b1[1]:.3f} "
-        f"A{r:.3f},{r:.3f} 0 0 0 {b2[0]:.3f},{b2[1]:.3f} "
-        f"L{a2[0]:.3f},{a2[1]:.3f} "
-        f"A{r:.3f},{r:.3f} 0 0 0 {a1[0]:.3f},{a1[1]:.3f} Z"
+        f'<path d="M{x0:.2f},{y0:.2f} A{R},{R} 0 0 {sweep} {x1:.2f},{y1:.2f}" '
+        f'fill="none" stroke="{stroke}" stroke-width="{sw}" stroke-linecap="butt"/>'
+        f'<path d="M{tip[0]:.2f},{tip[1]:.2f} L{b1[0]:.2f},{b1[1]:.2f} '
+        f'L{b2[0]:.2f},{b2[1]:.2f} Z" fill="{stroke}"/>'
     )
 
 
-def burst(n=12, ri=2.6, ro_long=10.4, ro_short=8.2, width=1.85,
-          cx=CX, cy=CY, start_deg=-90.0):
-    """Radial burst of n capsule rays, alternating long/short for an
-    organic, hand-drawn feel like the Claude mark."""
-    r = width / 2.0
-    paths = []
-    for i in range(n):
-        ang = math.radians(start_deg + i * 360.0 / n)
-        ro = ro_long if i % 2 == 0 else ro_short
-        ax, ay = cx + math.cos(ang) * ri, cy + math.sin(ang) * ri
-        bx, by = cx + math.cos(ang) * ro, cy + math.sin(ang) * ro
-        paths.append(capsule(ax, ay, bx, by, r))
-    return paths
-
-
-def svg(paths, size=24):
-    body = "\n  ".join(f'<path d="{p}"/>' for p in paths)
+def composite(burst, arrow_fill, sw=1.7, bg=None, burst_fill=TERRACOTTA, s=0.092):
+    """24x24 icon: smaller centred burst + a top and bottom circular swap arrow."""
+    bw = 148.18 * s
+    off = (24 - bw) / 2
+    g = f"translate({off:.2f},{off:.2f}) scale({s:.4f}) {SRC_TRANSLATE}"
+    rect = f'  <rect width="24" height="24" rx="5" fill="{bg}"/>\n' if bg else ""
     return (
-        f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" '
-        f'xmlns="http://www.w3.org/2000/svg" fill="currentColor">\n  '
-        f'{body}\n</svg>\n'
+        '<svg width="24" height="24" viewBox="0 0 24 24" '
+        'xmlns="http://www.w3.org/2000/svg">\n'
+        f'{rect}'
+        f'  <path transform="{g}" fill="{burst_fill}" d="{burst}"/>\n'
+        f'  {arc(-160, -20, 1, arrow_fill, sw)}\n'
+        f'  {arc(20, 160, 1, arrow_fill, sw)}\n'
+        '</svg>\n'
     )
 
 
-# --- glyph (status-bar font + base mark): full-size centered burst ---
-glyph = burst()
-with open("media/claude-burst.svg", "w") as f:
-    f.write(svg(glyph))
+def main():
+    burst = burst_path()
 
-# --- sidebar: smaller burst up-left + swap-arrows badge bottom-right ---
-side = burst(n=12, ri=1.9, ro_long=7.6, ro_short=6.0, width=1.5,
-             cx=9.0, cy=8.6)
-# Two swap arrows (right-pointing on top, left-pointing below) as a badge.
-badge = [
-    # top arrow shaft + head, pointing right
-    "M13.0,17.4 L19.0,17.4 L19.0,16.0 L22.0,18.1 L19.0,20.2 L19.0,18.8 "
-    "L13.0,18.8 Z",
-    # bottom arrow shaft + head, pointing left
-    "M22.0,21.0 L16.0,21.0 L16.0,19.6 L13.0,21.7 L16.0,23.8 L16.0,22.4 "
-    "L22.0,22.4 Z",
-]
-with open("media/icon.svg", "w") as f:
-    f.write(svg(side + badge))
+    # 1) Sidebar / activity-bar icon (theme-adapting arrows).
+    with open(os.path.join(ROOT, "media", "icon.svg"), "w") as f:
+        f.write(composite(burst, arrow_fill="currentColor"))
 
-print("wrote media/claude-burst.svg and media/icon.svg")
+    # 2) Extensions-list tile: colored, self-contained -> PNG.
+    import cairosvg
+    plugin_svg = composite(burst, arrow_fill=CHARCOAL, bg=CREAM)
+    cairosvg.svg2png(bytestring=plugin_svg.encode(),
+                     write_to=os.path.join(ROOT, "media", "plugin-icon.png"),
+                     output_width=256, output_height=256)
+
+    # 3) Icon-font glyph source: monochrome burst with the group translate
+    #    flattened into the first moveto (fantasticon ignores group transforms).
+    flat = burst.replace(SRC_MOVETO, FLAT_MOVETO, 1)
+    with open(os.path.join(ROOT, "icons-src", "claude-logo.svg"), "w") as f:
+        f.write(
+            '<svg width="148.18" height="148.18" viewBox="0 0 148.18 148.18" '
+            'xmlns="http://www.w3.org/2000/svg" fill="currentColor">'
+            f'<path d="{flat}"/></svg>\n'
+        )
+
+    print("Regenerated media/icon.svg, media/plugin-icon.png, "
+          "icons-src/claude-logo.svg")
+    print("If the burst changed, rebuild the font:\n"
+          "  npx fantasticon icons-src -o media -n claude-icons "
+          "-t woff -g json --normalize true")
+
+
+if __name__ == "__main__":
+    main()

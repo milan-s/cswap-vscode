@@ -10,6 +10,7 @@ node_modules/**
 *.vsix
 scripts/**
 icons-src/**
+design/**
 preview/**
+.github/**
 media/claude-icons.json
-media/claude-burst.svg
