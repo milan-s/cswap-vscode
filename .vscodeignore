@@ -1,0 +1,15 @@
+.vscode/**
+src/**
+node_modules/**
+**/tsconfig.json
+**/*.map
+**/*.ts
+.gitignore
+.git/**
+.claude/**
+*.vsix
+scripts/**
+icons-src/**
+preview/**
+media/claude-icons.json
+media/claude-burst.svg

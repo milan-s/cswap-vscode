@@ -1,0 +1,53 @@
+name: Release
+
+# Builds the VSIX and publishes it on every version tag (e.g. v0.1.6).
+# Create a tag with:  git tag v0.1.6 && git push origin v0.1.6
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write # needed to create the GitHub Release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile
+        run: npm run compile
+
+      - name: Package VSIX
+        run: npx --yes @vscode/vsce package -o "cswap-vscode-${GITHUB_REF_NAME#v}.vsix"
+
+      - name: Attach VSIX to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "*.vsix"
+          generate_release_notes: true
+
+      # --- Optional: publish to the VS Code Marketplace ---
+      # Add a repo secret named VSCE_PAT (Azure DevOps PAT, Marketplace > Manage scope).
+      - name: Publish to VS Code Marketplace
+        if: ${{ env.VSCE_PAT != '' }}
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npx --yes @vscode/vsce publish -p "$VSCE_PAT"
+
+      # --- Optional: publish to Open VSX (VSCodium / Cursor / Gitpod) ---
+      # Add a repo secret named OVSX_PAT from https://open-vsx.org
+      - name: Publish to Open VSX
+        if: ${{ env.OVSX_PAT != '' }}
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: npx --yes ovsx publish "cswap-vscode-${GITHUB_REF_NAME#v}.vsix" -p "$OVSX_PAT"
