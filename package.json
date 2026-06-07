@@ -1,7 +1,7 @@
 {
   "name": "cswap-vscode",
   "displayName": "CSwap — Claude Account Switcher",
-  "description": "Add, list, remove and quickly swap between Claude Code accounts using cswap. Shows live usage details per account, auto-reloads the window and closes Claude terminals on switch.",
+  "description": "Switch between real Claude Code accounts (Pro, Max, Enterprise) by swapping the OAuth credentials Claude Code actually uses — so both the CLI and in-editor terminals pick up the new account. Live usage per account, auto-reload, and Claude terminal cleanup included.",
   "version": "0.1.9",
   "publisher": "MadCowTM",
   "author": "MadCowTM",
