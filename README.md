@@ -1,10 +1,29 @@
-# CSwap — Claude Account Switcher for VSCode
+# CSwap — Claude Account Switcher for VS Code
 
-A thin VSCode front-end over [`cswap`](https://pypi.org/project/claude-swap/) (claude-swap),
-the multi-account switcher for Claude Code. Add, list, remove, and — **mainly** — quickly
-**swap** between Claude accounts without leaving the editor.
+Switch between multiple real Claude Code accounts — Pro, Max, Enterprise — directly from VS Code.
+Built on [`cswap`](https://pypi.org/project/claude-swap/) (claude-swap), which swaps the actual
+OAuth credentials Claude Code uses, so **both the CLI and any in-editor terminals pick up the new
+account instantly**.
 
-It shells out to your existing `cswap` install; it never stores credentials itself.
+It shells out to your existing `cswap` install; it never stores or parses credentials itself.
+
+## How account switching actually works
+
+Claude Code authenticates with an OAuth token stored securely on your machine — Keychain on macOS,
+credential files on Linux and Windows. Switching accounts means replacing that token with one
+belonging to a different account.
+
+When you swap:
+
+1. `cswap` writes the new account's OAuth token to the platform credential store
+2. This extension reloads the VS Code window (and optionally closes Claude terminals first)
+3. Claude Code — both the CLI and any terminals running inside VS Code — re-reads the new
+   credentials from the store
+
+This is a full account switch, not a model or API key change. It works for any account type
+(Pro, Max, Enterprise) because they all authenticate the same way. Credentials are never
+touched by this extension directly; `cswap` handles all storage using platform-native secure
+storage on each OS.
 
 ## Features
 
@@ -19,14 +38,18 @@ It shells out to your existing `cswap` install; it never stores credentials itse
   so stale Claude Code sessions don't linger after swapping.
 - **Add accounts** two ways:
   - *Add Current Account* — captures the account you're currently logged into (`cswap --add-account`).
-  - *Add from OAuth Token* — paste a `sk-ant-oat01-…` setup-token (`cswap --add-token`, fed via stdin
-    so it never appears in your process list).
+  - *Add from OAuth Token* — paste a `sk-ant-oat01-…` setup-token (`cswap --add-token`, fed via
+    stdin so it never appears in your process list).
 - **Remove** an account with a confirmation dialog.
 - Optional polling (`cswap.refreshIntervalSeconds`) to keep usage figures fresh.
 
 ## Requirements
 
-- `cswap` (claude-swap) installed and working. Verify with `cswap --list`.
+- `cswap` (claude-swap) installed and working. Install it with:
+  ```bash
+  pip install claude-swap
+  ```
+  Verify with `cswap --list`.
 - The extension auto-detects `cswap` on your `PATH` and in `~/.local/bin`, `/usr/local/bin`,
   `/opt/homebrew/bin`. If it lives elsewhere, set **`cswap.path`** to the absolute path.
 
@@ -56,29 +79,31 @@ It shells out to your existing `cswap` install; it never stores credentials itse
 
 ```bash
 npm install
-npm run compile      # or: npm run watch
+npm run watch        # TypeScript auto-compiles on save
 ```
 
-Then press **F5** in VSCode ("Run Extension") to launch an Extension Development Host
-with the plugin loaded.
+Then press **F5** in VS Code ("Run Extension") to open an Extension Development Host with the
+plugin loaded live. Save a file → TypeScript recompiles → `Ctrl+Shift+F5` in the dev window
+restarts the extension host.
 
-### Install into your editor
+To test the packaged extension as a real user would see it:
 
 ```bash
-npx @vscode/vsce package          # produces cswap-vscode-x.y.z.vsix
-code --uninstall-extension MadCowTM.cswap-vscode
-code --install-extension cswap-vscode-x.y.z.vsix
+npm run build:install   # compile → package → uninstall old → install fresh → reload VS Code
 ```
 
-## How it works
+## How it works internally
 
-The extension never parses or stores tokens. It calls:
+The extension shells out to `cswap` for all account operations and never reads tokens directly:
 
-- `cswap --list` and parses the text output (ANSI-stripped) into the account list / usage.
-- `cswap --switch-to <n>` to swap.
-- `cswap --add-account`, `cswap --add-token -` (token via stdin), `cswap --remove-account <n>`
-  for management.
+- `cswap --list` — parsed (ANSI-stripped) to build the account list and usage figures
+- `cswap --switch-to <n>` — performs the credential swap
+- `cswap --add-account` — captures the currently logged-in account
+- `cswap --add-token -` — registers a setup-token read from stdin
+- `cswap --remove-account <n>` — removes an account
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
+
+`cswap` (claude-swap) is a separate project licensed under MIT.
