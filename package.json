@@ -189,9 +189,9 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "package": "vsce package",
-    "build:local": "npm run compile && vsce package -o cswap-local.vsix",
-    "build:install": "npm run compile && vsce package -o cswap-local.vsix && (code --uninstall-extension MadCowTM.cswap-vscode 2>/dev/null || true) && code --install-extension cswap-local.vsix"
+    "package": "npx @vscode/vsce package",
+    "build:local": "npm run compile && npx @vscode/vsce package -o cswap-local.vsix",
+    "build:install": "npm run compile && npx @vscode/vsce package -o cswap-local.vsix && (code --uninstall-extension MadCowTM.cswap-vscode 2>/dev/null || true) && code --install-extension cswap-local.vsix"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
