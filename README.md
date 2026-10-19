@@ -41,6 +41,14 @@ storage on each OS.
   - *Add from OAuth Token* — paste a `sk-ant-oat01-…` setup-token (`cswap --add-token`, fed via
     stdin so it never appears in your process list).
 - **Remove** an account with a confirmation dialog.
+- **Re-login expired accounts** with one browser click. When cswap reports an account's refresh
+  token as dead (`re-login needed`), the account gets a warning icon and a notification with a
+  **Re-login** button. The extension saves the active login, runs `claude auth login` in a
+  terminal, and hands you the sign-in link (**Copy Link** / **Open in Default Browser**) instead
+  of opening a browser itself — so you can use the browser profile where that account is signed
+  in. It then verifies you signed in as the right account, saves it with `cswap add`, and switches
+  back to the account you were on. Switching to an expired account offers *Re-login and Switch*.
+  (macOS / Linux.)
 - Optional polling (`cswap.refreshIntervalSeconds`) to keep usage figures fresh.
 
 ## Requirements
@@ -63,6 +71,7 @@ storage on each OS.
 | `CSwap: Add Account from OAuth Token` | Register a raw setup-token |
 | `CSwap: Switch to This Account` | (sidebar) swap to the selected account |
 | `CSwap: Remove This Account` | (sidebar) remove the selected account |
+| `CSwap: Re-login Claude Account (browser sign-in)` | Sign an account in again via the browser (also inline on expired accounts in the sidebar) |
 | `CSwap: Show Usage Details` | (sidebar title bar) expand usage rows under each account |
 | `CSwap: Hide Usage Details` | (sidebar title bar) collapse usage rows back to one line |
 
@@ -71,6 +80,7 @@ storage on each OS.
 | Setting | Default | Description |
 | --- | --- | --- |
 | `cswap.path` | `""` | Absolute path to the `cswap` binary. Empty = auto-detect. |
+| `cswap.claudePath` | `""` | Absolute path to the Claude Code CLI used for re-login. Empty = auto-detect. |
 | `cswap.refreshIntervalSeconds` | `0` | Auto-refresh interval in seconds. `0` disables polling. |
 | `cswap.autoReloadWindow` | `false` | Reload the VS Code window automatically after switching accounts, without prompting. |
 | `cswap.closeClaudeTerminals` | `false` | Close any open terminals whose name contains "claude" before reloading after an account switch. |
@@ -101,6 +111,12 @@ The extension shells out to `cswap` for all account operations and never reads t
 - `cswap --add-account` — captures the currently logged-in account
 - `cswap --add-token -` — registers a setup-token read from stdin
 - `cswap --remove-account <n>` — removes an account
+- Re-login: `cswap --add-account` (save the active login) → `claude auth login --email <account>`
+  with `$BROWSER` pointed at a script that captures the sign-in URL → `claude auth status`
+  (verify the email) → `cswap --add-account` → `cswap --switch-to <previous>`
+
+Run the tests with `npm test` (set `CSWAP_TEST_REAL_CLAUDE=1` to also drive the real Claude CLI
+against a throwaway config dir).
 
 ## License
 
