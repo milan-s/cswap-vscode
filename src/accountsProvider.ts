@@ -26,16 +26,18 @@ export class AccountItem extends vscode.TreeItem {
         : vscode.TreeItemCollapsibleState.None,
     );
 
-    this.contextValue = "cswapAccount";
+    this.contextValue = account.needsRelogin ? "cswapAccountRelogin" : "cswapAccount";
     this.description = describe(account, expandUsage);
     this.tooltip = buildTooltip(account);
 
-    this.iconPath = account.active
-      ? new vscode.ThemeIcon(
-          "pass-filled",
-          new vscode.ThemeColor("charts.green"),
-        )
-      : new vscode.ThemeIcon("account");
+    this.iconPath = account.needsRelogin
+      ? new vscode.ThemeIcon("warning", new vscode.ThemeColor("charts.yellow"))
+      : account.active
+        ? new vscode.ThemeIcon(
+            "pass-filled",
+            new vscode.ThemeColor("charts.green"),
+          )
+        : new vscode.ThemeIcon("account");
 
     // Clicking the row swaps to that account.
     if (!account.active) {
@@ -53,6 +55,9 @@ function describe(a: Account, expandUsage: boolean): string {
   if (a.active) {
     parts.push("● active");
   }
+  if (a.needsRelogin) {
+    parts.push("re-login needed");
+  }
   if (a.org) {
     parts.push(a.org);
   }
@@ -64,12 +69,15 @@ function describe(a: Account, expandUsage: boolean): string {
 }
 
 function buildTooltip(a: Account): vscode.MarkdownString {
-  const md = new vscode.MarkdownString();
+  const md = new vscode.MarkdownString(undefined, true);
   md.appendMarkdown(`**${a.email}**${a.active ? "  _(active)_" : ""}\n\n`);
   if (a.org) {
     md.appendMarkdown(`Org: ${a.org}\n\n`);
   }
   md.appendMarkdown(`Slot: ${a.number}\n\n`);
+  if (a.needsRelogin) {
+    md.appendMarkdown("$(warning) Refresh token expired — use **Re-login** to sign in again.\n\n");
+  }
   if (a.usage.length > 0) {
     md.appendMarkdown("---\n\n");
     for (const line of a.usage) {

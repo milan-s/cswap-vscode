@@ -3,6 +3,7 @@ import { existsSync } from "fs";
 import * as os from "os";
 import * as path from "path";
 import * as vscode from "vscode";
+import { needsRelogin } from "./relogin";
 
 /** A single managed Claude account, parsed from `cswap --list`. */
 export interface Account {
@@ -14,6 +15,8 @@ export interface Account {
   active: boolean;
   /** Human-readable usage lines (e.g. "$$: 21% $51.42 / $250.00"). */
   usage: string[];
+  /** cswap reports the stored refresh token as dead; only a browser re-login fixes it. */
+  needsRelogin: boolean;
 }
 
 export class CswapError extends Error {
@@ -57,7 +60,7 @@ export function resolveCswapPath(): string {
   return "cswap";
 }
 
-function expandHome(p: string): string {
+export function expandHome(p: string): string {
   if (p === "~" || p.startsWith("~/")) {
     return path.join(os.homedir(), p.slice(1));
   }
@@ -130,6 +133,7 @@ export function parseList(raw: string): Account[] {
         org: m[3].trim(),
         active: Boolean(m[4]),
         usage: [],
+        needsRelogin: false,
       };
       accounts.push(current);
       continue;
@@ -149,6 +153,9 @@ export function parseList(raw: string): Account[] {
     }
   }
 
+  for (const a of accounts) {
+    a.needsRelogin = needsRelogin(a.usage);
+  }
   return accounts;
 }
 

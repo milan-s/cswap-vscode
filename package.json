@@ -2,7 +2,7 @@
   "name": "cswap-vscode",
   "displayName": "CSwap — Claude Account Switcher",
   "description": "Switch between real Claude Code accounts (Pro, Max, Enterprise) by swapping the OAuth credentials Claude Code actually uses — so both the CLI and in-editor terminals pick up the new account. Live usage per account, auto-reload, and Claude terminal cleanup included.",
-  "version": "0.1.9",
+  "version": "0.1.11",
   "publisher": "MadCowTM",
   "author": "MadCowTM",
   "license": "MIT",
@@ -50,6 +50,11 @@
           "default": "",
           "description": "Absolute path to the cswap executable. Leave empty to auto-detect (PATH, ~/.local/bin/cswap)."
         },
+        "cswap.claudePath": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to the Claude Code CLI, used for browser re-login of expired accounts. Leave empty to auto-detect (~/.local/bin/claude, PATH)."
+        },
         "cswap.refreshIntervalSeconds": {
           "type": "number",
           "default": 0,
@@ -92,6 +97,15 @@
         "command": "cswap.switchToItem",
         "title": "CSwap: Switch to This Account",
         "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "cswap.reloginItem",
+        "title": "CSwap: Re-login This Account",
+        "icon": "$(key)"
+      },
+      {
+        "command": "cswap.relogin",
+        "title": "CSwap: Re-login Claude Account (browser sign-in)"
       },
       {
         "command": "cswap.removeItem",
@@ -163,24 +177,40 @@
       ],
       "view/item/context": [
         {
+          "command": "cswap.reloginItem",
+          "when": "view == cswapAccounts && viewItem == cswapAccountRelogin",
+          "group": "inline@0"
+        },
+        {
           "command": "cswap.switchToItem",
-          "when": "view == cswapAccounts && viewItem == cswapAccount",
+          "when": "view == cswapAccounts && viewItem =~ /^cswapAccount/",
           "group": "inline@1"
         },
         {
           "command": "cswap.removeItem",
-          "when": "view == cswapAccounts && viewItem == cswapAccount",
+          "when": "view == cswapAccounts && viewItem =~ /^cswapAccount/",
           "group": "inline@2"
         },
         {
           "command": "cswap.switchToItem",
-          "when": "view == cswapAccounts && viewItem == cswapAccount",
+          "when": "view == cswapAccounts && viewItem =~ /^cswapAccount/",
           "group": "1_actions@1"
         },
         {
           "command": "cswap.removeItem",
-          "when": "view == cswapAccounts && viewItem == cswapAccount",
+          "when": "view == cswapAccounts && viewItem =~ /^cswapAccount/",
           "group": "1_actions@2"
+        },
+        {
+          "command": "cswap.reloginItem",
+          "when": "view == cswapAccounts && viewItem =~ /^cswapAccount/",
+          "group": "1_actions@3"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "cswap.reloginItem",
+          "when": "false"
         }
       ]
     }
@@ -191,7 +221,8 @@
     "watch": "tsc -watch -p ./",
     "package": "npx @vscode/vsce package",
     "build:local": "npm run compile && npx @vscode/vsce package -o cswap-local.vsix",
-    "build:install": "npm run compile && npx @vscode/vsce package -o cswap-local.vsix && (code --uninstall-extension MadCowTM.cswap-vscode 2>/dev/null || true) && code --install-extension cswap-local.vsix"
+    "build:install": "npm run compile && npx @vscode/vsce package -o cswap-local.vsix && (code --uninstall-extension MadCowTM.cswap-vscode 2>/dev/null || true) && code --install-extension cswap-local.vsix",
+    "test": "npm run compile && node --test out/test/"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
