@@ -1,7 +1,12 @@
 import * as vscode from "vscode";
 import { Account } from "./cswap";
+import { Stale, formatTime } from "./staleness";
 
-type AnyItem = AccountItem | UsageItem;
+type AnyItem = AccountItem | UsageItem | StaleItem;
+
+const STALE_HELP =
+  "cswap is showing its last good reading. Usage only rises within a window, " +
+  "so the real figure is at least this. A 429 throttles usage *checks*, not your quota.";
 
 /** Tree item representing one usage detail line under an account. */
 export class UsageItem extends vscode.TreeItem {
@@ -10,6 +15,22 @@ export class UsageItem extends vscode.TreeItem {
     this.contextValue = "cswapUsage";
     this.iconPath = new vscode.ThemeIcon("pulse");
   }
+}
+
+/** Warning row under an account whose usage reading is old, with why and when it retries. */
+export class StaleItem extends vscode.TreeItem {
+  constructor(stale: Stale) {
+    super(`stale ${stale.age}`, vscode.TreeItemCollapsibleState.None);
+    this.contextValue = "cswapStale";
+    this.description = staleDetail(stale);
+    this.tooltip = STALE_HELP;
+    this.iconPath = new vscode.ThemeIcon("history", new vscode.ThemeColor("charts.yellow"));
+  }
+}
+
+/** "rate-limited by Anthropic, retry 13:18" */
+function staleDetail(s: Stale): string {
+  return s.retryAt ? `${s.reason}, retry ${formatTime(s.retryAt, Date.now())}` : s.reason;
 }
 
 /** Tree item representing one managed Claude account. */
@@ -65,6 +86,9 @@ function describe(a: Account, expandUsage: boolean): string {
   if (!expandUsage && a.usage.length > 0) {
     parts.push(a.usage[0]);
   }
+  if (!expandUsage && a.stale) {
+    parts.push(`stale ${a.stale.age}`);
+  }
   return parts.join("  ·  ");
 }
 
@@ -83,6 +107,9 @@ function buildTooltip(a: Account): vscode.MarkdownString {
     for (const line of a.usage) {
       md.appendMarkdown(`- ${line}\n`);
     }
+  }
+  if (a.stale) {
+    md.appendMarkdown(`\n$(history) **stale ${a.stale.age}** — ${staleDetail(a.stale)}\n\n_${STALE_HELP}_\n`);
   }
   return md;
 }
@@ -119,7 +146,12 @@ export class AccountsProvider implements vscode.TreeDataProvider<AnyItem> {
       return this.accounts.map((a) => new AccountItem(a, this._expandUsage));
     }
     if (element instanceof AccountItem && this._expandUsage) {
-      return element.account.usage.map((line) => new UsageItem(line));
+      const { usage, stale } = element.account;
+      const rows: AnyItem[] = usage.map((line) => new UsageItem(line));
+      if (stale) {
+        rows.push(new StaleItem(stale));
+      }
+      return rows;
     }
     return [];
   }

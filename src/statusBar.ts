@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { Account } from "./cswap";
+import { formatStale } from "./staleness";
 
 /** Status bar item showing the active Claude account; click to swap. */
 export class StatusBar {
@@ -48,6 +49,9 @@ export class StatusBar {
       for (const line of active.usage) {
         md.appendMarkdown(`- ${line}\n`);
       }
+    }
+    if (active.stale) {
+      md.appendMarkdown(`\n_${formatStale(active.stale, Date.now())}_\n`);
     }
     md.appendMarkdown(`\n\n_Click to swap (${accounts.length} accounts)._`);
     this.item.tooltip = md;
