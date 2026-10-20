@@ -12,6 +12,7 @@ import {
 import { AccountItem, AccountsProvider } from "./accountsProvider";
 import { authStatusEmail, runLoginInTerminal } from "./claude";
 import { ReloginOptions, ReloginResult, relogin } from "./relogin";
+import { formatStale } from "./staleness";
 import { StatusBar } from "./statusBar";
 
 let provider: AccountsProvider;
@@ -135,7 +136,9 @@ async function swapCommand(): Promise<void> {
   const items = accounts.map((a) => ({
     label: `${a.active ? "$(pass-filled) " : "$(account) "}${a.email}`,
     description: [a.org, a.usage[0]].filter(Boolean).join("  ·  "),
-    detail: a.usage.slice(1).join("   "),
+    detail: [...a.usage.slice(1), a.stale && `$(history) ${formatStale(a.stale, Date.now())}`]
+      .filter(Boolean)
+      .join("   "),
     account: a,
   }));
 

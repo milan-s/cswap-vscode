@@ -4,6 +4,7 @@ import * as os from "os";
 import * as path from "path";
 import * as vscode from "vscode";
 import { needsRelogin } from "./relogin";
+import { CacheRow, Stale, cacheKey, describeStale, readUsageCache, splitAge } from "./staleness";
 
 /** A single managed Claude account, parsed from `cswap --list`. */
 export interface Account {
@@ -17,6 +18,8 @@ export interface Account {
   usage: string[];
   /** cswap reports the stored refresh token as dead; only a browser re-login fixes it. */
   needsRelogin: boolean;
+  /** Set when cswap is serving an old usage reading (its "· 1h ago" marker). */
+  stale?: Stale;
 }
 
 export class CswapError extends Error {
@@ -112,9 +115,14 @@ function run(args: string[], stdin?: string): Promise<string> {
  *   Running instances:
  *     ...
  */
-export function parseList(raw: string): Account[] {
+export function parseList(
+  raw: string,
+  cache: Map<string, CacheRow> = new Map(),
+  nowMs: number = Date.now(),
+): Account[] {
   const text = stripAnsi(raw);
   const accounts: Account[] = [];
+  const ages = new Map<Account, string>();
   let current: Account | undefined;
 
   const headerRe = /^\s*(\d+):\s+(.+?)\s+\[(.*?)\]\s*(\(active\))?\s*$/;
@@ -148,13 +156,22 @@ export function parseList(raw: string): Account[] {
       // Strip leading tree connectors (├ └ •) and surrounding whitespace.
       const cleaned = trimmed.replace(/^[├└•]\s*/, "").trim();
       if (cleaned) {
-        current.usage.push(cleaned);
+        // The stale marker moves off the line into `stale`, explained below.
+        const { line: usage, age } = splitAge(cleaned);
+        current.usage.push(usage);
+        if (age) {
+          ages.set(current, age);
+        }
       }
     }
   }
 
   for (const a of accounts) {
     a.needsRelogin = needsRelogin(a.usage);
+    const age = ages.get(a);
+    if (age) {
+      a.stale = describeStale(age, cache.get(cacheKey(a.number, a.email)), nowMs);
+    }
   }
   return accounts;
 }
@@ -162,7 +179,7 @@ export function parseList(raw: string): Account[] {
 /** List all managed accounts. Returns [] if none are managed yet. */
 export async function listAccounts(): Promise<Account[]> {
   const out = await run(["--list"]);
-  return parseList(out);
+  return parseList(out, readUsageCache());
 }
 
 /** Switch to a specific account by number or email. Returns cswap's stdout. */
