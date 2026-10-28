@@ -2,7 +2,7 @@
   "name": "cswap-vscode",
   "displayName": "CSwap — Claude Account Switcher",
   "description": "Switch between real Claude Code accounts (Pro, Max, Enterprise) by swapping the OAuth credentials Claude Code actually uses — so both the CLI and in-editor terminals pick up the new account. Live usage per account, auto-reload, and Claude terminal cleanup included.",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "publisher": "MadCowTM",
   "author": "MadCowTM",
   "license": "MIT",
@@ -136,7 +136,7 @@
       "cswap": [
         {
           "id": "cswapAccounts",
-          "name": "Accounts",
+          "name": "Claude Accounts",
           "icon": "media/icon.svg"
         }
       ]
